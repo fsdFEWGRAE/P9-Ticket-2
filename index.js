@@ -20,13 +20,14 @@ import express from "express";
 
 dotenv.config();
 
+
 // =======================
 //      RENDER PORT
 // =======================
 const app = express();
 app.get("/", (req, res) => res.send("P9 Ticket Bot is running!"));
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Web server on port ${PORT}`));
+app.listen(PORT, () => console.log(`Web server running on port ${PORT}`));
 
 
 // =======================
@@ -42,14 +43,17 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.GuildMember]
 });
 
-// PREFIX
+
+// =======================
+//    GLOBAL CONSTANTS
+// =======================
 const PREFIX = "#";
 
-// STAFF ROLE + LOG CHANNEL
 const STAFF_ROLE_ID = "1438169628571471982";
 const LOG_CHANNEL_ID = "1438169861619585076";
 
-// CATEGORIES
+const PANEL_CHANNEL_ID = "1440508751412203570"; // ← غرفة اللوحة (لا تُحذف أبداً)
+
 const CATEGORY_IDS = {
   support: "1438169784213831691",
   "hwid-reset": "1438179752220426240",
@@ -61,12 +65,12 @@ const CATEGORY_IDS = {
 // =======================
 //   DATA STORAGE
 // =======================
-const ticketOwners = new Map(); // channelId -> ownerId
-const ticketClaims = new Map(); // channelId -> staffId
+const ticketOwners = new Map(); // channelId → ownerId
+const ticketClaims = new Map(); // channelId → staffId
 
 
 // =======================
-//  PANEL SETTINGS (JSON)
+//  PANEL SETTINGS JSON
 // =======================
 const SETTINGS_FILE = "panel_settings.json";
 
@@ -99,7 +103,7 @@ function savePanelSettings() {
 
 
 // =======================
-//   HELPER FUNCTIONS
+//     HELPER FUNCTIONS
 // =======================
 function userOpenTicketCount(user) {
   let count = 0;
@@ -134,7 +138,7 @@ function createTicketButtons(claimed) {
 
 
 // =======================
-//        READY
+//         READY
 // =======================
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -142,7 +146,7 @@ client.on("ready", () => {
 
 
 // =======================
-//       MESSAGE CMDS
+//    MESSAGE COMMANDS
 // =======================
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
@@ -152,9 +156,9 @@ client.on("messageCreate", async (message) => {
   const command = args.shift()?.toLowerCase();
 
 
-  // =======================
-  //     #PANEL COMMANDS
-  // =======================
+  // -----------------------------------------
+  //           PANEL COMMANDS
+  // -----------------------------------------
   if (command === "panel") {
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
       return message.reply("❌ تحتاج صلاحيات Administrator.");
@@ -169,13 +173,13 @@ client.on("messageCreate", async (message) => {
     if (sub === "set_title") {
       panelSettings.title = args.join(" ");
       savePanelSettings();
-      return message.reply("✔ تم تغيير العنوان.");
+      return message.reply("✔ تم تغيير عنوان اللوحة.");
     }
 
     if (sub === "set_description") {
       panelSettings.description = args.join(" ");
       savePanelSettings();
-      return message.reply("✔ تم تغيير الوصف.");
+      return message.reply("✔ تم تغيير وصف اللوحة.");
     }
 
     if (sub === "set_image") {
@@ -206,14 +210,12 @@ client.on("messageCreate", async (message) => {
         components: [new ActionRowBuilder().addComponents(menu)]
       });
     }
-
-    return;
   }
 
 
-  // =======================
-  //      #TICKET PANEL
-  // =======================
+  // -----------------------------------------
+  //         #TICKET
+  // -----------------------------------------
   if (command === "ticket") {
     const embed = new EmbedBuilder()
       .setTitle(panelSettings.title)
@@ -238,35 +240,39 @@ client.on("messageCreate", async (message) => {
   }
 
 
-  // =======================
-  //      #CLOSEALL
-  // =======================
- if (command === "closeall") {
-  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-    return message.reply("❌ هذا الأمر للمديرين فقط.");
+  // -----------------------------------------
+  //         #CLOSEALL (Final Fix)
+  // -----------------------------------------
+  if (command === "closeall") {
+    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+      return message.reply("❌ هذا الأمر للمديرين فقط.");
 
-  let closed = 0;
+    let closed = 0;
 
-  message.guild.channels.cache.forEach(async (ch) => {
-    // نحذف فقط القنوات التي تحتوي على ticket + uid (أرقام)
-    if (
-      ch.type === ChannelType.GuildText &&
-      ch.name.includes("-ticket-") &&
-      /\d{17,19}/.test(ch.name) // يبحث عن user id داخل الاسم
-    ) {
-      try {
-        await ch.delete();
-        closed++;
-      } catch {}
-    }
-  });
+    message.guild.channels.cache.forEach(async (ch) => {
 
-  ticketOwners.clear();
-  ticketClaims.clear();
+      // ❗ لا تحذف غرفة اللوحة نهائياً
+      if (ch.id === PANEL_CHANNEL_ID) return;
 
-  return message.reply(`✅ تم إغلاق جميع التذاكر (${closed}) بنجاح — بدون حذف لوحة التذاكر.`);
-}
- });
+      // ❗ احذف فقط قنوات التذاكر التي تحتوي userId
+      if (
+        ch.type === ChannelType.GuildText &&
+        ch.name.includes("-ticket-") &&
+        /\d{17,19}/.test(ch.name) // userId داخل الاسم
+      ) {
+        try {
+          await ch.delete();
+          closed++;
+        } catch {}
+      }
+    });
+
+    ticketOwners.clear();
+    ticketClaims.clear();
+
+    return message.reply(`✅ تم إغلاق جميع التذاكر (${closed}) بنجاح — بدون حذف لوحة التذاكر.`);
+  }
+});
 
 
 // =======================
@@ -302,7 +308,7 @@ client.on("interactionCreate", async (interaction) => {
 
 
 // =======================
-//   CREATE TICKET CHANNEL
+//       CREATE TICKET
 // =======================
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isModalSubmit()) return;
@@ -314,7 +320,6 @@ client.on("interactionCreate", async (interaction) => {
   const user = interaction.user;
 
   const categoryId = CATEGORY_IDS[type];
-
   const channelName = `${type}-ticket-${user.id}`.toLowerCase();
 
   const channel = await guild.channels.create({
@@ -352,14 +357,16 @@ client.on("interactionCreate", async (interaction) => {
 
 
 // =======================
-//   CLAIM / UNC / CLOSE
+//  CLAIM / UNCLAIM / CLOSE
 // =======================
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
 
   const { customId, channel, user, guild, member } = interaction;
 
-  // CLAIM
+  // ------------------------
+  //         CLAIM
+  // ------------------------
   if (customId === "ticket_claim") {
     if (ticketClaims.get(channel.id))
       return interaction.reply({ content: "❌ التذكرة مستلمة بالفعل.", ephemeral: true });
@@ -367,7 +374,7 @@ client.on("interactionCreate", async (interaction) => {
     ticketClaims.set(channel.id, user.id);
 
     await channel.edit({
-      name: channel.name + `-claimed-by-${user.id}`
+      name: `${channel.name}-claimed-by-${user.id}`
     });
 
     await channel.send(`🏷️ تم استلام التذكرة بواسطة ${user}.`);
@@ -376,9 +383,12 @@ client.on("interactionCreate", async (interaction) => {
   }
 
 
-  // UNCLAIM
+  // ------------------------
+  //        UNCLAIM
+  // ------------------------
   if (customId === "ticket_unclaim") {
     const claimer = ticketClaims.get(channel.id);
+
     if (claimer !== user.id)
       return interaction.reply({ content: "❌ فقط الشخص الذي استلم التذكرة يمكنه إلغاء الاستلام.", ephemeral: true });
 
@@ -388,75 +398,39 @@ client.on("interactionCreate", async (interaction) => {
       name: channel.name.split("-claimed-by-")[0]
     });
 
-    await channel.send("❌ تم فك الاستلام.");
+    await channel.send("❌ تم فك استلام التذكرة.");
 
     return interaction.update({ components: [createTicketButtons(false)] });
   }
 
 
-  // CLOSE
+  // ------------------------
+  //         CLOSE
+  // ------------------------
   if (customId === "ticket_close") {
     const ownerId = ticketOwners.get(channel.id);
     const isOwner = ownerId === user.id;
     const isStaff = member.roles.cache.has(STAFF_ROLE_ID);
 
     if (!isOwner && !isStaff)
-      return interaction.reply({ content: "❌ لا يمكنك إغلاق هذه التذكرة.", ephemeral: true });
+      return interaction.reply({
+        content: "❌ لا يمكنك إغلاق هذه التذكرة.",
+        ephemeral: true
+      });
 
     await interaction.deferReply({ ephemeral: true });
 
-    // fetch messages
-    async function fetchAllMessages(ch) {
-      let all = [];
-      let lastId;
-      while (true) {
-        const fetched = await ch.messages.fetch({ limit: 100, before: lastId });
-        if (fetched.size === 0) break;
-        all = [...all, ...fetched.values()];
-        lastId = fetched.last().id;
-      }
-      return all.reverse();
-    }
-
-    const msgs = await fetchAllMessages(channel);
-
-    const transcript = msgs
-      .map(m => `[${new Date(m.createdTimestamp).toISOString()}] ${m.author.tag}: ${m.content}`)
-      .join("\n");
-
-    const filename = `transcript-${channel.id}.txt`;
-    fs.writeFileSync(filename, transcript);
-
-    const logCh = guild.channels.cache.get(LOG_CHANNEL_ID);
-    if (logCh) {
-      await logCh.send({
-        content: `📄 Transcript for ${channel.name}`,
-        files: [filename]
-      });
-    }
-
-    try {
-      const ownerUser = await guild.client.users.fetch(ownerId);
-      await ownerUser.send({
-        content: "📄 Transcript for your ticket:",
-        files: [filename]
-      });
-    } catch {}
+    await channel.delete();
 
     ticketOwners.delete(channel.id);
     ticketClaims.delete(channel.id);
 
-    fs.unlinkSync(filename);
-
-    await channel.delete();
-
-    return interaction.editReply({ content: "✔ تم إغلاق التذكرة وترحيلها.", ephemeral: true });
+    return interaction.editReply({ content: "✔ تم إغلاق التذكرة.", ephemeral: true });
   }
 });
 
 
 // =======================
-//       LOGIN
+//         LOGIN
 // =======================
 client.login(process.env.TOKEN);
-
