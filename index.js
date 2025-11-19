@@ -241,30 +241,32 @@ client.on("messageCreate", async (message) => {
   // =======================
   //      #CLOSEALL
   // =======================
-  if (command === "closeall") {
-    if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
-      return message.reply("❌ هذا الأمر للمديرين فقط.");
+ if (command === "closeall") {
+  if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator))
+    return message.reply("❌ هذا الأمر للمديرين فقط.");
 
-    let closed = 0;
+  let closed = 0;
 
-    message.guild.channels.cache.forEach(async (ch) => {
-      if (
-        ch.type === ChannelType.GuildText &&
-        ch.name.includes("ticket")
-      ) {
-        try {
-          await ch.delete();
-          closed++;
-        } catch {}
-      }
-    });
+  message.guild.channels.cache.forEach(async (ch) => {
+    // نحذف فقط القنوات التي تحتوي على ticket + uid (أرقام)
+    if (
+      ch.type === ChannelType.GuildText &&
+      ch.name.includes("-ticket-") &&
+      /\d{17,19}/.test(ch.name) // يبحث عن user id داخل الاسم
+    ) {
+      try {
+        await ch.delete();
+        closed++;
+      } catch {}
+    }
+  });
 
-    ticketOwners.clear();
-    ticketClaims.clear();
+  ticketOwners.clear();
+  ticketClaims.clear();
 
-    return message.reply(`✅ تم إغلاق جميع التذاكر (${closed}) بنجاح.`);
-  }
-});
+  return message.reply(`✅ تم إغلاق جميع التذاكر (${closed}) بنجاح — بدون حذف لوحة التذاكر.`);
+}
+ });
 
 
 // =======================
@@ -457,3 +459,4 @@ client.on("interactionCreate", async (interaction) => {
 //       LOGIN
 // =======================
 client.login(process.env.TOKEN);
+
