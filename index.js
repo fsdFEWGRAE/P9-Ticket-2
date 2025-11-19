@@ -331,7 +331,7 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   try {
-    const channelName = `${ticketType}-ticket-${user.username}`.toLowerCase();
+   const channelName = `${ticketType}-ticket-${user.id}`;.toLowerCase();
 
     const channel = await guild.channels.create({
       name: channelName.slice(0, 90),
@@ -720,3 +720,4 @@ client.on("interactionCreate", async (interaction) => {
 
 // ================ تشغيل البوت ================
 client.login(process.env.TOKEN);
+
